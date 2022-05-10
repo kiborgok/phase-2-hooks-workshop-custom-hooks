@@ -1,16 +1,48 @@
 import styled from "styled-components";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useReducer } from "react";
 
 /* ✅ modify this usePokemon custom hook to take in a query as an argument */
+
+function pokemonReducer(state, action) {
+  switch (action.type) {
+    case "pending":
+      return { data: null, errors: null, status: "pending" };
+    case "fulfilled":
+      return { data: action.payload, errors: null, status: "fulfilled" };
+    case "rejected":
+      return { data: null, errors: action.payload, status: "rejected" };
+    default:
+      return state;
+  }
+}
 export function usePokemon(query) {
   /* ✅ this hook should only return one thing: an object with the pokemon data */
-  const [pokemon, setPokemon] = useState(null);
+  const initialState = {
+    data: null,
+    errors: null,
+    status: "idle",
+  };
+  const [{ data, errors, status }, dispatch] = useReducer(
+    pokemonReducer,
+    initialState
+  );
+
   useEffect(() => {
+    dispatch({ type: "pending" });
     fetch(`https://pokeapi.co/api/v2/pokemon/${query}`)
-      .then(r => r.json())
-      .then(setPokemon);
+      .then(r => {
+        if (r.ok) {
+          return r.json();
+        } else {
+          return r.text().then(err => {
+            throw err;
+          });
+        }
+      })
+      .then(res => dispatch({ type: "fulfilled", payload: res }))
+      .catch(err => dispatch({ type: "rejected", payload: [err] }));
   }, [query]);
-  return { data: pokemon };
+  return { data, errors, status };
 }
 
 function Pokemon({ query }) {
@@ -18,10 +50,21 @@ function Pokemon({ query }) {
    ✅ move the code from the useState and useEffect hooks into the usePokemon hook
    then, call the usePokemon hook to access the pokemon data in this component
   */
-  const { data : pokemon } = usePokemon(query);
+  const { data: pokemon, errors, status } = usePokemon(query);
 
   // 🚫 don't worry about the code below here, you shouldn't have to touch it
-  if (!pokemon) return <h3>Loading...</h3>;
+  if (status === "idle" || status === "pending") return <h3>Loading...</h3>;
+
+  if (status === "rejected") {
+    return (
+      <div>
+        <h3>Error</h3>
+        {errors.map(e => (
+          <p key={e}>{e}</p>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>
